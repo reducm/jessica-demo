@@ -1,0 +1,143 @@
+diff --git a/node_modules/playwright-core/lib/client/browserContext.js b/node_modules/playwright-core/lib/client/browserContext.js
+index bd80f48..dc41e56 100644
+--- a/node_modules/playwright-core/lib/client/browserContext.js
++++ b/node_modules/playwright-core/lib/client/browserContext.js
+@@ -54,6 +54,7 @@ class BrowserContext extends _channelOwner.ChannelOwner {
+     return context ? BrowserContext.from(context) : null;
+   }
+   constructor(parent, type, guid, initializer) {
++
+     var _this$_browser;
+     super(parent, type, guid, initializer, (0, _clientInstrumentation.createInstrumentation)());
+     this._pages = new Set();
+@@ -111,6 +112,9 @@ class BrowserContext extends _channelOwner.ChannelOwner {
+       page
+     }) => this._onRequestFailed(network.Request.from(request), responseEndTiming, failureText, _page.Page.fromNullable(page)));
+     this._channel.on('requestFinished', params => this._onRequestFinished(params));
++
++    this._channel.on("change", (data)=>console.log('browserContext onChange!!!!', {data} ))
++
+     this._channel.on('response', ({
+       response,
+       page
+@@ -381,6 +385,7 @@ class BrowserContext extends _channelOwner.ChannelOwner {
+     }
+   }
+   async _enableRecorder(params) {
++    console.log('enableRecorder!!!');
+     await this._channel.recorderSupplementEnable(params);
+   }
+ }
+diff --git a/node_modules/playwright-core/lib/server/recorder.js b/node_modules/playwright-core/lib/server/recorder.js
+index 4594a9c..0bff957 100644
+--- a/node_modules/playwright-core/lib/server/recorder.js
++++ b/node_modules/playwright-core/lib/server/recorder.js
+@@ -47,7 +47,7 @@ class Recorder {
+     Recorder.recorderAppFactory = recorderAppFactory;
+   }
+   static showInspector(context) {
+-    Recorder.show(context, {}).catch(() => {});
++    Recorder.show(context, {}).catch(() => { });
+   }
+   static show(context, params = {}) {
+     let recorderPromise = context[recorderSymbol];
+@@ -92,6 +92,7 @@ class Recorder {
+       this._recorderApp = null;
+     });
+     recorderApp.on('event', data => {
++      debugger;
+       if (data.event === 'setMode') {
+         this.setMode(data.params.mode);
+         return;
+@@ -126,7 +127,7 @@ class Recorder {
+     this._context.once(_browserContext.BrowserContext.Events.Close, () => {
+       this._contextRecorder.dispose();
+       this._context.instrumentation.removeListener(this);
+-      recorderApp.close().catch(() => {});
++      recorderApp.close().catch(() => { });
+     });
+     this._contextRecorder.on(ContextRecorder.Events.Change, data => {
+       var _this$_recorderApp;
+@@ -190,7 +191,7 @@ class Recorder {
+     (_this$_recorderApp4 = this._recorderApp) === null || _this$_recorderApp4 === void 0 ? void 0 : _this$_recorderApp4.setMode(this._mode);
+     this._contextRecorder.setEnabled(this._mode === 'recording');
+     this._debugger.setMuted(this._mode === 'recording');
+-    if (this._mode !== 'none' && this._context.pages().length === 1) this._context.pages()[0].bringToFront().catch(() => {});
++    if (this._mode !== 'none' && this._context.pages().length === 1) this._context.pages()[0].bringToFront().catch(() => { });
+     this._refreshOverlay();
+   }
+   resume() {
+@@ -208,7 +209,7 @@ class Recorder {
+     this._contextRecorder.setOutput(codegenId, outputFile);
+   }
+   _refreshOverlay() {
+-    for (const page of this._context.pages()) page.mainFrame().evaluateExpression('window.__pw_refreshOverlay()', false, undefined, 'main').catch(() => {});
++    for (const page of this._context.pages()) page.mainFrame().evaluateExpression('window.__pw_refreshOverlay()', false, undefined, 'main').catch(() => { });
+   }
+   async onBeforeCall(sdkObject, metadata) {
+     if (this._omitCallTracking || this._mode === 'recording') return;
+@@ -220,7 +221,7 @@ class Recorder {
+     } else if (metadata.params && metadata.params.selector) {
+       var _this$_recorderApp5;
+       this._highlightedSelector = metadata.params.selector;
+-      (_this$_recorderApp5 = this._recorderApp) === null || _this$_recorderApp5 === void 0 ? void 0 : _this$_recorderApp5.setSelector(this._highlightedSelector).catch(() => {});
++      (_this$_recorderApp5 = this._recorderApp) === null || _this$_recorderApp5 === void 0 ? void 0 : _this$_recorderApp5.setSelector(this._highlightedSelector).catch(() => { });
+     }
+   }
+   async onAfterCall(sdkObject, metadata) {
+@@ -274,7 +275,7 @@ class Recorder {
+     var _this$_recorderApp7;
+     (_this$_recorderApp7 = this._recorderApp) === null || _this$_recorderApp7 === void 0 ? void 0 : _this$_recorderApp7.setSources([...this._recorderSources, ...this._userSources.values()]);
+   }
+-  async onBeforeInputAction(sdkObject, metadata) {}
++  async onBeforeInputAction(sdkObject, metadata) { }
+   async onCallLog(sdkObject, metadata, logName, message) {
+     this.updateCallLog([metadata]);
+   }
+@@ -322,6 +323,9 @@ class ContextRecorder extends _events.EventEmitter {
+     const language = params.language || context._browser.options.sdkLanguage;
+     this.setOutput(language, params.outputFile);
+     const generator = new _codeGenerator.CodeGenerator(context._browser.options.name, params.mode === 'recording', params.launchOptions || {}, params.contextOptions || {}, params.device, params.saveStorage);
++
++
++
+     generator.on('change', () => {
+       this._recorderSources = [];
+       for (const languageGenerator of this._orderedLanguages) {
+@@ -346,12 +350,27 @@ class ContextRecorder extends _events.EventEmitter {
+         };
+         source.revealLine = text.split('\n').length - 1;
+         this._recorderSources.push(source);
++
+         if (languageGenerator === this._orderedLanguages[0]) (_this$_throttledOutpu = this._throttledOutputFile) === null || _this$_throttledOutpu === void 0 ? void 0 : _this$_throttledOutpu.setContent(source.text);
+       }
++
++
+       this.emit(ContextRecorder.Events.Change, {
+         sources: this._recorderSources,
+         primaryFileName: this._orderedLanguages[0].id
+       });
++
++      // 新增全局
++      if (global.codeChangeEvent) {
++        const model = this._recorderSources.filter((s)=> s.language == 'javascript')[0]
++        console.log("send sources from recorderjs:", {model})
++
++        const sources = model.text
++        global.codeChangeEvent.emit("CODE_CHANGE", {
++          sources,
++          // primaryFileName: this._orderedLanguages[0].id
++        })
++      }
+     });
+     context.on(_browserContext.BrowserContext.Events.BeforeClose, () => {
+       var _this$_throttledOutpu2;
+@@ -481,7 +500,7 @@ class ContextRecorder extends _events.EventEmitter {
+       const injected = await utility.injectedScript();
+       const selector = await injected.evaluate((injected, element) => injected.generateSelector(element, this._testIdAttributeName), frameElement);
+       return selector;
+-    } catch (e) {}
++    } catch (e) { }
+   }
+   async _performAction(frame, action) {
+     // Commit last action so that no further signals are added to it.
